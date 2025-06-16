@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 import * as React from 'react';
 import {
   PermissionsAndroid,
@@ -25,10 +26,23 @@ interface EmailMessage {
   snippet: string;
 }
 
+interface GmailHeader {
+  name: string;
+  value: string;
+}
+
+interface GmailMessageResponse {
+  id: string;
+  payload: {
+    headers: GmailHeader[];
+  };
+  snippet: string;
+}
+
 const App: React.FC = () => {
   const [messages, setMessages] = React.useState<string[]>([]);
   const [emails, setEmails] = React.useState<EmailMessage[]>([]);
-  const [loading, setLoading] = React.useState(false);
+  const [loading, setLoading] = React.useState<boolean>(false);
 
   React.useEffect(() => {
     GoogleSignin.configure({
@@ -83,13 +97,12 @@ const App: React.FC = () => {
         (count: number, smsList: string) => {
           try {
             const messagesArray: SMSMessage[] = JSON.parse(smsList);
-            console.log('SMS messages fetched:', messagesArray);
             const formattedMessages = messagesArray.map(
               (sms: SMSMessage) =>
                 `From: ${sms.address}\nMessage: ${sms.body}`,
             );
             setMessages(formattedMessages);
-          } catch (error: unknown) {
+          } catch (error) {
             console.error('Error parsing SMS:', error);
             Alert.alert('Error', 'Failed to parse SMS messages');
           }
@@ -110,30 +123,30 @@ const App: React.FC = () => {
     try {
       setLoading(true);
       await GoogleSignin.hasPlayServices();
-      const userInfo = await GoogleSignin.signIn();
-      const tokens = await GoogleSignin.getTokens();
+      await GoogleSignin.signIn();
+      const { accessToken } = await GoogleSignin.getTokens();
 
-      const response = await axios.get(
+      const response = await axios.get<{ messages: { id: string }[] }>(
         'https://www.googleapis.com/gmail/v1/users/me/messages',
         {
-          headers: { Authorization: `Bearer ${tokens.accessToken}` },
+          headers: { Authorization: `Bearer ${accessToken}` },
           params: { maxResults: 10 }
         }
       );
 
-      const emailPromises = response.data.messages.map(async (msg: { id: string }) => {
-        const messageDetail = await axios.get(
+      const emailPromises = response.data.messages.map(async (msg) => {
+        const messageDetail = await axios.get<GmailMessageResponse>(
           `https://www.googleapis.com/gmail/v1/users/me/messages/${msg.id}`,
           {
-            headers: { Authorization: `Bearer ${tokens.accessToken}` }
+            headers: { Authorization: `Bearer ${accessToken}` }
           }
         );
 
         const headers = messageDetail.data.payload.headers;
         return {
           id: msg.id,
-          subject: headers.find((h: any) => h.name === 'Subject')?.value || 'No Subject',
-          from: headers.find((h: any) => h.name === 'From')?.value || 'Unknown',
+          subject: headers.find((h) => h.name === 'Subject')?.value || 'No Subject',
+          from: headers.find((h) => h.name === 'From')?.value || 'Unknown',
           snippet: messageDetail.data.snippet
         };
       });
@@ -178,15 +191,13 @@ const App: React.FC = () => {
               </View>
             ))
           )
-        ) : (
-          // Email messages view
-          emails.length === 0 ? (
+        ) : (emails.length === 0 ? (
             <Text style={styles.emptyText}>No emails yet.</Text>
           ) : (
-            emails.map((email) => (
-              <View key={email.id} style={styles.emailCard}>
-                <Text style={styles.emailSubject}>{email.subject}</Text>
-                <Text style={styles.emailFrom}>{email.from}</Text>
+    emails.map(email => (
+        <View key={email.id} style={styles.emailCard}>
+        <Text style={styles.emailSubject}>{email.subject}</Text>
+         <Text style={styles.emailFrom}>{email.from}</Text>
                 <Text style={styles.emailSnippet}>{email.snippet}</Text>
               </View>
             ))
